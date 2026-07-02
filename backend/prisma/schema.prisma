@@ -1,0 +1,154 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum IngredientCategory {
+  DAIRY // Молочные продукты
+  MEAT_FISH // Мясо и рыба
+  EGGS // Яйца
+  VEGETABLES // Овощи
+  FRUITS // Фрукты и ягоды
+  GRAINS_PASTA // Крупы и макароны
+  BAKERY // Хлеб и выпечка
+  OILS_SAUCES // Масла и соусы
+  SPICES // Специи и приправы
+  NUTS_SEEDS // Орехи и семена
+  SWEETS // Сладкое
+  BEVERAGES // Напитки
+  FROZEN // Заморозка
+  CANNED // Консервы
+  OTHER // Прочее
+}
+
+enum MealType {
+  BREAKFAST
+  LUNCH
+  DINNER
+  SNACK
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum DishSource {
+  CATALOG
+  AI
+  USER
+}
+
+enum IngredientSource {
+  SEED
+  AI
+}
+
+enum ShoppingItemSource {
+  FROM_DISH
+  MANUAL
+}
+
+model Ingredient {
+  id             String             @id @default(uuid())
+  name           String             @unique // отображаемое имя, напр. "Куриное филе"
+  nameNormalized String // для поиска: нижний регистр, без лишнего
+  aliases        String[]           @default([]) // синонимы для сопоставления
+  category       IngredientCategory
+  // КБЖУ на 100 г. null у "категорийных" ингредиентов (hasNutrition = false)
+  kcal100        Float?
+  protein100     Float?
+  fat100         Float?
+  carb100        Float?
+  pieceMassG     Float? // масса одной штуки в граммах; заполняется для счётных продуктов (яйцо, банан)
+  defaultUnit    String             @default("г") // "г", "мл", "шт", "ст.л." и т.п.
+  hasNutrition   Boolean            @default(true) // true = годен для блюд
+  source         IngredientSource   @default(SEED)
+  createdAt      DateTime           @default(now())
+
+  dishLinks      DishIngredient[]
+  shoppingItems  ShoppingItem[]
+
+  @@index([nameNormalized])
+  @@index([category])
+}
+
+model Dish {
+  id          String           @id @default(uuid())
+  name        String
+  description String // краткое описание
+  mealType    MealType
+  cookTimeMin Int
+  servings    Int              @default(1) // базовое число порций
+  isFrac      Boolean          @default(false) // можно ли масштабировать порцию дробно (1.3×); false = только целые кратные
+  difficulty  Difficulty
+  // КБЖУ ВСЕГО блюда при базовом servings. Считается из ингредиентов, кешируется здесь.
+  kcal        Float
+  protein     Float
+  fat         Float
+  carb        Float
+  steps       String[] // пошаговый рецепт, по порядку
+  tags        String[]         @default([]) // "веган", "без глютена" и т.п.
+  source      DishSource       @default(CATALOG)
+  createdAt   DateTime         @default(now())
+
+  ingredients DishIngredient[]
+  savedBy     SavedRecipe[]
+
+  @@index([mealType])
+}
+
+model DishIngredient {
+  // связка многие-ко-многим с количествами
+  id           String     @id @default(uuid())
+  dish         Dish       @relation(fields: [dishId], references: [id], onDelete: Cascade)
+  dishId       String
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id])
+  ingredientId String
+  amount       Float // количество в единицах unit
+  unit         String // "г", "шт", "мл"...
+  note         String? // "мелко нарезать" и т.п.
+
+  @@unique([dishId, ingredientId])
+  @@index([ingredientId])
+}
+
+model SavedRecipe {
+  id      String   @id @default(uuid())
+  userId  String // см. §9 (в v1 — фиксированный)
+  dish    Dish     @relation(fields: [dishId], references: [id], onDelete: Cascade)
+  dishId  String
+  savedAt DateTime @default(now())
+
+  @@unique([userId, dishId])
+  @@index([userId])
+}
+
+model ShoppingItem {
+  id           String             @id @default(uuid())
+  userId       String
+  ingredient   Ingredient?        @relation(fields: [ingredientId], references: [id])
+  ingredientId String? // null, если ручной ингредиент вне базы
+  customName   String? // имя для ручного ингредиента вне базы
+  category     IngredientCategory // итоговая категория (для группировки)
+  amount       Float?
+  unit         String?
+  checked      Boolean            @default(false)
+  source       ShoppingItemSource
+  createdAt    DateTime           @default(now())
+
+  @@index([userId])
+}
+
+model AiCache {
+  id           String   @id @default(uuid())
+  kind         String // "VISION" | "GENERATION" | "CATEGORY"
+  keyHash      String   @unique // sha256 от нормализованного входа
+  responseJson Json
+  createdAt    DateTime @default(now())
+}

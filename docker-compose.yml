@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: chef-assistant-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-chef}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-chef}
+      POSTGRES_DB: ${POSTGRES_DB:-chef}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - chef-assistant-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-chef} -d ${POSTGRES_DB:-chef}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  chef-assistant-pgdata:
