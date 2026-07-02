@@ -17,11 +17,13 @@
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.65.0",
     "@fastify/cors": "^8.5.0",
+    "@fastify/multipart": "^8.3.1",
+    "@huggingface/transformers": "^4.2.0",
     "@prisma/client": "^5.22.0",
     "dotenv": "^16.4.5",
     "fastify": "^4.28.1",
+    "openai": "^6.45.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
@@ -34,6 +36,9 @@
     "@prisma/client": true,
     "@prisma/engines": true,
     "esbuild": true,
-    "prisma": true
+    "prisma": true,
+    "onnxruntime-node@1.24.3": true,
+    "protobufjs@7.6.4": true,
+    "sharp@0.34.5": true
   }
 }

@@ -1,6 +1,7 @@
 import "dotenv/config";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
+import multipart from "@fastify/multipart";
 import { ZodError } from "zod";
 import { prisma } from "./db";
 import { ApiError } from "./lib/errors";
@@ -8,6 +9,7 @@ import userIdPlugin from "./plugins/userId";
 import dishesRoutes from "./routes/dishes";
 import ingredientsRoutes from "./routes/ingredients";
 import menuRoutes from "./routes/menu";
+import photoRoutes from "./routes/photo";
 import savedRoutes from "./routes/saved";
 import shoppingRoutes from "./routes/shopping";
 
@@ -15,10 +17,14 @@ const app = Fastify({ logger: true });
 
 app.register(cors, { origin: true });
 app.register(userIdPlugin);
+// Загрузка фото (§6.1 «Вход A»): лимит размера файла — защита от случайных
+// огромных загрузок, не связана с бизнес-логикой распознавания.
+app.register(multipart, { limits: { fileSize: 8 * 1024 * 1024 } });
 
 app.register(dishesRoutes);
 app.register(ingredientsRoutes);
 app.register(menuRoutes);
+app.register(photoRoutes);
 app.register(savedRoutes);
 app.register(shoppingRoutes);
 

@@ -11,7 +11,9 @@ import {
   patchShoppingItemSchema,
   shoppingIdParamSchema,
 } from "../schemas/shopping";
-import { matchIngredient } from "../services/matching";
+import { matchIngredient, normalizeName } from "../services/matching";
+import { classifyCategory } from "../services/ai/classify";
+import { AiServiceError } from "../services/ai/errors";
 
 // Порядок групп в ответе GET /api/shopping — по порядку объявления enum.
 const CATEGORY_ORDER = Object.values(IngredientCategory);
@@ -34,37 +36,25 @@ function serializeShoppingItem(item: ShoppingItemWithIngredient) {
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
-// Один и тот же ингредиент может понадобиться из нескольких блюд (напр. банан
-// и в завтраке, и в перекусе) — вместо второй отдельной строки в списке
-// покупок количество суммируется в уже существующую позицию по ingredientId.
-async function addOrMergeShoppingItem(params: {
-  userId: string;
-  ingredientId: string;
-  category: IngredientCategory;
-  amount: number | null;
-  unit: string;
-  source: ShoppingItemSource;
-}): Promise<{ item: ShoppingItemWithIngredient; created: boolean }> {
-  const existing = await prisma.shoppingItem.findFirst({
-    where: { userId: params.userId, ingredientId: params.ingredientId },
-    include: { ingredient: true },
-  });
+// Ручное добавление без количества/единицы (напр. просто "тест") должно
+// давать осмысленную позицию, а не пустую строку без цифр, и корректно
+// суммироваться при повторном вводе того же имени ("тест" + "тест" → "2 шт").
+const DEFAULT_MANUAL_AMOUNT = 1;
+const DEFAULT_MANUAL_UNIT = "шт";
 
-  if (!existing) {
-    const created = await prisma.shoppingItem.create({
-      data: {
-        userId: params.userId,
-        ingredientId: params.ingredientId,
-        category: params.category,
-        amount: params.amount,
-        unit: params.unit,
-        source: params.source,
-      },
-      include: { ingredient: true },
-    });
-    return { item: created, created: true };
-  }
+// Отображаемые названия продуктов — с большой буквы (как в seed, напр.
+// "Куриное филе"), независимо от того, как ввёл пользователь.
+function capitalizeFirst(s: string): string {
+  return s.length > 0 ? s[0].toUpperCase() + s.slice(1) : s;
+}
 
+// Слияние количества в уже найденную позицию списка покупок. Общая логика
+// для merge по ingredientId и merge по нормализованному customName
+// (см. addOrMergeManualUnresolvedItem ниже).
+async function mergeIntoExistingItem(
+  existing: ShoppingItemWithIngredient,
+  params: { amount: number | null; unit: string }
+): Promise<{ item: ShoppingItemWithIngredient; created: boolean }> {
   // Позиция, уже отмеченная купленной, считается закрытой: новое добавление
   // начинает её заново с этим количеством вместо суммирования поверх уже
   // купленного и снимает отметку "куплено", т.к. появилась новая потребность.
@@ -88,6 +78,110 @@ async function addOrMergeShoppingItem(params: {
     include: { ingredient: true },
   });
   return { item: updated, created: false };
+}
+
+// Один и тот же ингредиент может понадобиться из нескольких блюд (напр. банан
+// и в завтраке, и в перекусе) — вместо второй отдельной строки в списке
+// покупок количество суммируется в уже существующую позицию по ingredientId.
+// Слияние — только при совпадении unit: "1 л" и "1 шт" одного и того же
+// названия не одно и то же количество, суммировать их нельзя — это должны
+// быть две отдельные позиции.
+async function addOrMergeShoppingItem(params: {
+  userId: string;
+  ingredientId: string;
+  category: IngredientCategory;
+  amount: number | null;
+  unit: string;
+  source: ShoppingItemSource;
+}): Promise<{ item: ShoppingItemWithIngredient; created: boolean }> {
+  const existing = await prisma.shoppingItem.findFirst({
+    where: { userId: params.userId, ingredientId: params.ingredientId, unit: params.unit },
+    include: { ingredient: true },
+  });
+
+  if (!existing) {
+    const created = await prisma.shoppingItem.create({
+      data: {
+        userId: params.userId,
+        ingredientId: params.ingredientId,
+        category: params.category,
+        amount: params.amount,
+        unit: params.unit,
+        source: params.source,
+      },
+      include: { ingredient: true },
+    });
+    return { item: created, created: true };
+  }
+
+  return mergeIntoExistingItem(existing, { amount: params.amount, unit: params.unit });
+}
+
+// Крайний случай (§6.4, Фаза 3): первый ручной ввод неизвестного ингредиента
+// создаёт позицию с ingredientId = null + customName (см. ниже классификацию
+// через ИИ). При следующем ручном вводе того же имени matchIngredient уже
+// находит категорийный Ingredient, созданный при первом добавлении, и вызов
+// пошёл бы по ветке addOrMergeShoppingItem(ingredientId) — но она ищет
+// существующую позицию по ingredientId и не увидит "осиротевшую" позицию
+// с ingredientId = null, что породило бы дубль строки для того же продукта.
+// Решение: перед merge-по-id ищем позицию этого пользователя с
+// ingredientId = null, чей customName после нормализации совпадает с именем
+// найденного ингредиента, и "привязываем" её (проставляем ingredientId,
+// снимаем customName) — дальше она участвует в обычном addOrMergeShoppingItem
+// как любая другая привязанная позиция. Привязка идёт только по имени, без
+// учёта unit — это про то, что это тот же товар, а не про суммирование
+// количества; количество для несовпадающего unit разъедет уже
+// addOrMergeShoppingItem, создав для него отдельную позицию.
+async function linkOrphanManualItem(userId: string, ingredient: Ingredient): Promise<void> {
+  const orphans = await prisma.shoppingItem.findMany({
+    where: { userId, ingredientId: null, customName: { not: null } },
+  });
+  const orphan = orphans.find((o) => normalizeName(o.customName!) === ingredient.nameNormalized);
+  if (!orphan) return;
+
+  await prisma.shoppingItem.update({
+    where: { id: orphan.id },
+    data: { ingredientId: ingredient.id, customName: null, category: ingredient.category },
+  });
+}
+
+// Создание/слияние позиции для ингредиента, которого ИИ только что
+// классифицировал, но который ещё не существует как отдельная запись
+// Ingredient в контексте этого запроса (customName остаётся заполнен —
+// см. §6.4). Слияние повторного ввода того же ещё-не-связанного имени тоже
+// идёт по нормализованному customName (а не по ingredientId, которого нет) —
+// и, как и в addOrMergeShoppingItem, только при совпадении unit.
+async function addOrMergeManualUnresolvedItem(params: {
+  userId: string;
+  rawName: string;
+  category: IngredientCategory;
+  amount: number | null;
+  unit: string;
+}): Promise<{ item: ShoppingItemWithIngredient; created: boolean }> {
+  const normalized = normalizeName(params.rawName);
+  const orphans = await prisma.shoppingItem.findMany({
+    where: { userId: params.userId, ingredientId: null, customName: { not: null } },
+    include: { ingredient: true },
+  });
+  const existing = orphans.find((o) => normalizeName(o.customName!) === normalized && o.unit === params.unit);
+
+  if (existing) {
+    return mergeIntoExistingItem(existing, { amount: params.amount, unit: params.unit });
+  }
+
+  const created = await prisma.shoppingItem.create({
+    data: {
+      userId: params.userId,
+      ingredientId: null,
+      customName: params.rawName.trim(),
+      category: params.category,
+      amount: params.amount,
+      unit: params.unit,
+      source: "MANUAL",
+    },
+    include: { ingredient: true },
+  });
+  return { item: created, created: true };
 }
 
 const shoppingRoutes: FastifyPluginAsync = async (app) => {
@@ -125,8 +219,8 @@ const shoppingRoutes: FastifyPluginAsync = async (app) => {
         userId: request.userId,
         ingredientId: ingredient.id,
         category: ingredient.category,
-        amount: body.amount ?? null,
-        unit: body.unit ?? ingredient.defaultUnit,
+        amount: body.amount ?? DEFAULT_MANUAL_AMOUNT,
+        unit: body.unit?.trim() || ingredient.defaultUnit,
         source: "MANUAL",
       });
       reply.status(created ? 201 : 200);
@@ -137,25 +231,75 @@ const shoppingRoutes: FastifyPluginAsync = async (app) => {
     const name = body.name!;
     const match = await matchIngredient(name);
 
-    if (!match) {
-      // ЗАГЛУШКА ДО ФАЗЫ 3: ИИ-классификация неизвестных ингредиентов ещё не
-      // реализована (§7.6, Фаза 3 плана). Пока честно отдаём ошибку вместо
-      // того, чтобы молча класть в OTHER — так не плодим мусорные категории,
-      // которые потом придётся переклассифицировать.
-      throw new ApiError(
-        422,
-        "INGREDIENT_NOT_CLASSIFIED",
-        `Ингредиент «${name}» не найден в базе. Автоматическая категоризация появится в Фазе 3 — пока можно добавить существующий ингредиент из автокомплита.`
-      );
+    if (match) {
+      // Найден в базе (сид-ингредиент или ранее созданный ИИ категорийный) —
+      // категория берётся из базы, вызов ИИ не требуется. Перед merge-по-id
+      // сначала привязываем "осиротевшую" позицию с ingredientId = null
+      // (см. linkOrphanManualItem) — иначе повторный ввод того же имени,
+      // который в первый раз ушёл в ИИ-путь, породил бы дубль строки.
+      await linkOrphanManualItem(request.userId, match.ingredient);
+
+      const { item, created } = await addOrMergeShoppingItem({
+        userId: request.userId,
+        ingredientId: match.ingredient.id,
+        category: match.ingredient.category,
+        amount: body.amount ?? DEFAULT_MANUAL_AMOUNT,
+        unit: body.unit?.trim() || match.ingredient.defaultUnit,
+        source: "MANUAL",
+      });
+      reply.status(created ? 201 : 200);
+      return serializeShoppingItem(item);
     }
 
-    const { item, created } = await addOrMergeShoppingItem({
+    // Не найден в базе → ИИ-классификация категории (§7.6). AiServiceError
+    // означает недоступность/невалидный ответ шлюза — остальной список
+    // покупок при этом продолжает работать (§10 «Деградация»), падает только
+    // этот конкретный путь, с понятной ошибкой вместо голой 500-ки.
+    const normalized = normalizeName(name);
+    let category: IngredientCategory;
+    try {
+      category = await classifyCategory(normalized);
+    } catch (err) {
+      if (err instanceof AiServiceError) {
+        throw new ApiError(
+          503,
+          "AI_CLASSIFY_UNAVAILABLE",
+          `Не удалось определить категорию для «${name}»: сервис ИИ временно недоступен. Попробуйте повторить попытку позже.`
+        );
+      }
+      throw err;
+    }
+
+    // Категорийная запись Ingredient (hasNutrition = false, source = AI) —
+    // чтобы следующий ввод того же имени нашёлся через matchIngredient и не
+    // потребовал повторного вызова ИИ (§6.4). Upsert по уникальному `name`,
+    // чтобы повтор/гонка параллельных запросов не падали на unique-constraint.
+    // С большой буквы — как и остальные названия в базе (см. capitalizeFirst).
+    const displayName = capitalizeFirst(name.trim());
+    const unit = body.unit?.trim() || DEFAULT_MANUAL_UNIT;
+    await prisma.ingredient.upsert({
+      where: { name: displayName },
+      create: {
+        name: displayName,
+        nameNormalized: normalized,
+        category,
+        hasNutrition: false,
+        source: "AI",
+        defaultUnit: unit,
+      },
+      update: {},
+    });
+
+    // Сама позиция списка покупок остаётся ingredientId = null + customName
+    // (§6.4) — она не привязывается к только что созданному категорийному
+    // Ingredient немедленно; связывание происходит при следующем вводе того
+    // же имени через linkOrphanManualItem выше.
+    const { item, created } = await addOrMergeManualUnresolvedItem({
       userId: request.userId,
-      ingredientId: match.ingredient.id,
-      category: match.ingredient.category,
-      amount: body.amount ?? null,
-      unit: body.unit ?? match.ingredient.defaultUnit,
-      source: "MANUAL",
+      rawName: displayName,
+      category,
+      amount: body.amount ?? DEFAULT_MANUAL_AMOUNT,
+      unit,
     });
     reply.status(created ? 201 : 200);
     return serializeShoppingItem(item);

@@ -6,7 +6,7 @@ import { searchIngredients } from "../services/matching";
 const ingredientsRoutes: FastifyPluginAsync = async (app) => {
   app.get("/api/ingredients", async (request) => {
     const query = ingredientQuerySchema.parse(request.query);
-    return searchIngredients(query.search ?? "");
+    return searchIngredients(query.search ?? "", { hasNutrition: query.hasNutrition });
   });
 };
 

@@ -6,6 +6,7 @@ import MenuPage from "./pages/MenuPage";
 import PhotoPage from "./pages/PhotoPage";
 import SavedPage from "./pages/SavedPage";
 import ShoppingPage from "./pages/ShoppingPage";
+import { DishSelectionProvider } from "./state/dishSelectionContext";
 import { MenuPlanProvider } from "./state/menuPlanContext";
 import { ShoppingContributionsProvider } from "./state/shoppingContributionsContext";
 
@@ -15,17 +16,19 @@ export default function App() {
       <Nav />
       <main>
         <MenuPlanProvider>
-          <ShoppingContributionsProvider>
-            <Routes>
-              <Route path="/" element={<CatalogPage />} />
-              <Route path="/dishes" element={<CatalogPage />} />
-              <Route path="/dishes/:id" element={<DishDetailPage />} />
-              <Route path="/photo" element={<PhotoPage />} />
-              <Route path="/menu" element={<MenuPage />} />
-              <Route path="/saved" element={<SavedPage />} />
-              <Route path="/shopping" element={<ShoppingPage />} />
-            </Routes>
-          </ShoppingContributionsProvider>
+          <DishSelectionProvider>
+            <ShoppingContributionsProvider>
+              <Routes>
+                <Route path="/" element={<CatalogPage />} />
+                <Route path="/dishes" element={<CatalogPage />} />
+                <Route path="/dishes/:id" element={<DishDetailPage />} />
+                <Route path="/photo" element={<PhotoPage />} />
+                <Route path="/menu" element={<MenuPage />} />
+                <Route path="/saved" element={<SavedPage />} />
+                <Route path="/shopping" element={<ShoppingPage />} />
+              </Routes>
+            </ShoppingContributionsProvider>
+          </DishSelectionProvider>
         </MenuPlanProvider>
       </main>
     </div>

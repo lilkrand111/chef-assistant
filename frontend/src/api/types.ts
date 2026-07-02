@@ -126,3 +126,27 @@ export interface MenuPlan {
   totals: MenuTotals;
   deviation: MenuDeviation;
 }
+
+// Раздел 1 — подбор блюд по ингредиентам (§6.1, §8).
+export interface DetectedProduct {
+  name: string;
+  confidence: number;
+  ingredientId?: string;
+  matched: boolean;
+}
+
+export interface PhotoDetectResponse {
+  products: DetectedProduct[];
+  unmatched: string[];
+}
+
+export interface FromIngredientsRequest {
+  ingredientIds?: string[];
+  names?: string[];
+}
+
+export interface FromIngredientsResponse {
+  dishes: DishCard[];
+  generated: boolean;
+  unmatched: string[];
+}

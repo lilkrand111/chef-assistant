@@ -1,10 +1,12 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgTrgm, vector]
 }
 
 enum IngredientCategory {
@@ -70,12 +72,26 @@ model Ingredient {
   hasNutrition   Boolean            @default(true) // true = годен для блюд
   source         IngredientSource   @default(SEED)
   createdAt      DateTime           @default(now())
+  // Эмбеддинг nameNormalized для семантического матчинга (§7.1 шаг 4, Фаза 5).
+  // Unsupported: Prisma Client не умеет читать/писать vector напрямую — только
+  // raw SQL (services/ai/embed.ts + services/matching.ts). Размерность (768)
+  // должна совпадать с моделью из AI_EMBED_MODEL (Xenova/LaBSE) и с
+  // миграцией/индексом ниже.
+  embedding      Unsupported("vector(768)")?
 
   dishLinks      DishIngredient[]
   shoppingItems  ShoppingItem[]
 
   @@index([nameNormalized])
   @@index([category])
+  // Индекс создан raw-SQL миграцией (Prisma сама GIN-trgm не создаёт), но
+  // объявлен здесь (extendedIndexes, GA с Prisma 4.7+), чтобы migrate dev видел
+  // его как часть желаемой схемы и не удалял при следующем неродственном
+  // изменении — именно так индекс был случайно удалён миграцией `..._dev`
+  // (§13 «известное отклонение», теперь закрыто). Индекс для embedding (HNSW)
+  // такой защиты не имеет — Prisma не поддерживает объявление Hnsw/Ivfflat
+  // вообще ни в какой версии; см. комментарий у миграции pgvector_embeddings.
+  @@index([nameNormalized(ops: raw("gin_trgm_ops"))], type: Gin, map: "ingredient_name_trgm")
 }
 
 model Dish {

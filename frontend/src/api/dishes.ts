@@ -1,6 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "./client";
-import type { DishCard, MealType } from "./types";
+import type { DishCard, FromIngredientsRequest, FromIngredientsResponse, MealType } from "./types";
 
 export function useDishes(params: { mealType?: MealType; search?: string }) {
   const query = new URLSearchParams();
@@ -19,5 +19,14 @@ export function useDish(id: string | undefined) {
     queryKey: ["dish", id],
     queryFn: () => api.get<DishCard>(`/api/dishes/${id}`),
     enabled: Boolean(id),
+  });
+}
+
+// Общий движок раздела 1 (§6.1, §8): один и тот же вызов для входа с фото
+// (после подтверждения набора) и для ручного ввода без фото.
+export function useDishesFromIngredients() {
+  return useMutation({
+    mutationFn: (body: FromIngredientsRequest) =>
+      api.post<FromIngredientsResponse>("/api/dishes/from-ingredients", body),
   });
 }

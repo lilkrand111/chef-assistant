@@ -7,7 +7,84 @@ import {
   usePatchShoppingItem,
   useShopping,
 } from "../api/shopping";
+import type { ShoppingItem } from "../api/types";
 import { INGREDIENT_CATEGORY_LABELS } from "../lib/labels";
+
+const round1 = (n: number) => Math.round(n * 10) / 10;
+
+// "+"/"-" у позиции списка покупок: между кнопками — поле шага (по умолчанию
+// "1"), на которое меняется количество при каждом нажатии. Отдельный
+// компонент нужен, чтобы у каждой позиции было своё состояние шага (хук
+// нельзя завести внутри .map() родителя).
+function ShoppingListItem({
+  item,
+  onPatch,
+  onDelete,
+  patchPending,
+  deletePending,
+}: {
+  item: ShoppingItem;
+  onPatch: (body: { id: string; checked?: boolean; amount?: number }) => void;
+  onDelete: (id: string) => void;
+  patchPending: boolean;
+  deletePending: boolean;
+}) {
+  const [step, setStep] = useState("1");
+  const stepValue = Number(step);
+  const validStep = Number.isFinite(stepValue) && stepValue > 0 ? stepValue : 0;
+  const currentAmount = item.amount ?? 0;
+  const canDecrement = validStep > 0 && round1(currentAmount - validStep) > 0;
+  const canIncrement = validStep > 0;
+
+  return (
+    <li className="flex items-center gap-3 px-3 py-2">
+      <input
+        type="checkbox"
+        checked={item.checked}
+        onChange={(e) => onPatch({ id: item.id, checked: e.target.checked })}
+        className="h-4 w-4"
+      />
+      <span className={`flex-1 text-sm ${item.checked ? "text-gray-400 line-through" : "text-gray-800"}`}>
+        {item.name}
+        {item.amount != null ? ` — ${item.amount}${item.unit ? " " + item.unit : ""}` : ""}
+      </span>
+      <div className="flex items-center gap-1">
+        <button
+          onClick={() => onPatch({ id: item.id, amount: round1(currentAmount - validStep) })}
+          disabled={!canDecrement || patchPending}
+          aria-label="Уменьшить количество"
+          className="h-7 w-7 rounded-md border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+        >
+          −
+        </button>
+        <input
+          type="number"
+          value={step}
+          onChange={(e) => setStep(e.target.value)}
+          min="0"
+          step="any"
+          aria-label="Шаг изменения количества"
+          className="w-14 rounded-md border border-gray-300 px-1 py-1 text-center text-sm"
+        />
+        <button
+          onClick={() => onPatch({ id: item.id, amount: round1(currentAmount + validStep) })}
+          disabled={!canIncrement || patchPending}
+          aria-label="Увеличить количество"
+          className="h-7 w-7 rounded-md border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+        >
+          +
+        </button>
+      </div>
+      <button
+        onClick={() => onDelete(item.id)}
+        disabled={deletePending}
+        className="text-xs text-gray-400 hover:text-red-600 disabled:opacity-50"
+      >
+        Удалить
+      </button>
+    </li>
+  );
+}
 
 export default function ShoppingPage() {
   const { data, isLoading, isError, error } = useShopping();
@@ -105,25 +182,14 @@ export default function ShoppingPage() {
             <h2 className="mb-2 font-semibold text-gray-800">{INGREDIENT_CATEGORY_LABELS[group.category]}</h2>
             <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white">
               {group.items.map((item) => (
-                <li key={item.id} className="flex items-center gap-3 px-3 py-2">
-                  <input
-                    type="checkbox"
-                    checked={item.checked}
-                    onChange={(e) => patchItem.mutate({ id: item.id, checked: e.target.checked })}
-                    className="h-4 w-4"
-                  />
-                  <span className={`flex-1 text-sm ${item.checked ? "text-gray-400 line-through" : "text-gray-800"}`}>
-                    {item.name}
-                    {item.amount != null ? ` — ${item.amount}${item.unit ? " " + item.unit : ""}` : ""}
-                  </span>
-                  <button
-                    onClick={() => deleteItem.mutate(item.id)}
-                    disabled={deleteItem.isPending}
-                    className="text-xs text-gray-400 hover:text-red-600 disabled:opacity-50"
-                  >
-                    Удалить
-                  </button>
-                </li>
+                <ShoppingListItem
+                  key={item.id}
+                  item={item}
+                  onPatch={(body) => patchItem.mutate(body)}
+                  onDelete={(id) => deleteItem.mutate(id)}
+                  patchPending={patchItem.isPending}
+                  deletePending={deleteItem.isPending}
+                />
               ))}
             </ul>
           </div>
