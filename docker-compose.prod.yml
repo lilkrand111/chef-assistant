@@ -78,12 +78,37 @@ services:
       backend:
         condition: service_healthy
     # Единственный сервис, публикующий порт наружу (находка №3). На VPS —
-    # 80; локально при проверке можно переопределить переменной окружения
-    # NGINX_PORT (напр. `NGINX_PORT=8080 docker compose -f
-    # docker-compose.prod.yml up -d`), если 80 на хосте занят.
+    # 80 (и 443 с Фазы D4); локально при проверке можно переопределить
+    # переменной окружения NGINX_PORT (напр. `NGINX_PORT=8080 docker compose
+    # -f docker-compose.prod.yml up -d`), если 80 на хосте занят.
     ports:
       - "${NGINX_PORT:-80}:80"
+      - "443:443"
+    volumes:
+      # Сертификаты Let's Encrypt (находка №5 промпта D3-D5) — именованный
+      # volume, НЕ часть образа: продление каждые ~60-90 дней не должно
+      # требовать пересборки nginx-образа. Read-only здесь — пишет туда
+      # только сервис "certbot" ниже.
+      - certbot-etc:/etc/letsencrypt:ro
+      # Общий ACME-webroot (находка №6) — certbot кладёт файл-челлендж,
+      # nginx отдаёт его по location /.well-known/acme-challenge/ (nginx.conf).
+      - certbot-www:/var/www/certbot
+
+  # Одноразовый/периодический вызов certbot (находки №5-7) — НЕ поднимается
+  # автоматической `docker compose up -d` (profile "certbot"), запускается
+  # явно: `docker compose -f docker-compose.prod.yml --profile certbot run
+  # --rm certbot certonly --webroot -w /var/www/certbot -d aishef.xyz ...`
+  # (первый выпуск) и аналогично `... run --rm certbot renew ...` по cron
+  # (автопродление, Фаза D4).
+  certbot:
+    image: certbot/certbot:latest
+    profiles: ["certbot"]
+    volumes:
+      - certbot-etc:/etc/letsencrypt
+      - certbot-www:/var/www/certbot
 
 volumes:
   pgdata:
   models:
+  certbot-etc:
+  certbot-www:
