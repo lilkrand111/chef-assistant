@@ -59,6 +59,17 @@ function getExtractor(): Promise<FeatureExtractor> {
       // а бэкенд собран как CommonJS (package.json: "type": "commonjs").
       const { pipeline, env } = await import("@huggingface/transformers");
 
+      // @huggingface/transformers (transformers.js) не читает HF_HOME — это
+      // конвенция Python-библиотек HuggingFace, у JS-порта свой env.cacheDir
+      // (по умолчанию — каталог внутри node_modules, в writable-слое
+      // контейнера, а не в смонтированном volume "models"). Без явной
+      // привязки к HF_HOME веса перекачивались бы заново при каждом
+      // пересоздании контейнера (найдено на Фазе D5: ~минуты на VPS с
+      // ограниченной RAM), хотя volume "models:/models" для этого и заведён.
+      if (process.env.HF_HOME) {
+        env.cacheDir = process.env.HF_HOME;
+      }
+
       const modelName = process.env.AI_EMBED_MODEL || DEFAULT_MODEL;
       const modelPath = process.env.AI_EMBED_MODEL_PATH;
       if (modelPath) {
