@@ -14,7 +14,9 @@ export default function App() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Nav />
-      <main>
+      {/* pb-16 на мобильном — место под фиксированную нижнюю таб-панель Nav.tsx (М1),
+          чтобы контент/кнопки не оказывались под ней; на десктопе панели нет. */}
+      <main className="pb-16 md:pb-0">
         <MenuPlanProvider>
           <DishSelectionProvider>
             <ShoppingContributionsProvider>

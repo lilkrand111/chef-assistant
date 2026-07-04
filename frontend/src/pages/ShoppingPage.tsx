@@ -37,51 +37,59 @@ function ShoppingListItem({
   const canIncrement = validStep > 0;
 
   return (
-    <li className="flex items-center gap-3 px-3 py-2">
-      <input
-        type="checkbox"
-        checked={item.checked}
-        onChange={(e) => onPatch({ id: item.id, checked: e.target.checked })}
-        className="h-4 w-4"
-      />
-      <span className={`flex-1 text-sm ${item.checked ? "text-gray-400 line-through" : "text-gray-800"}`}>
-        {item.name}
-        {item.amount != null ? ` — ${item.amount}${item.unit ? " " + item.unit : ""}` : ""}
-      </span>
-      <div className="flex items-center gap-1">
-        <button
-          onClick={() => onPatch({ id: item.id, amount: round1(currentAmount - validStep) })}
-          disabled={!canDecrement || patchPending}
-          aria-label="Уменьшить количество"
-          className="h-7 w-7 rounded-md border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+    <li className="flex flex-wrap items-center gap-2 px-3 py-2">
+      <div className="flex min-w-0 basis-full items-center gap-2 sm:basis-auto sm:flex-1">
+        <label className="flex min-h-[44px] min-w-[44px] shrink-0 cursor-pointer items-center justify-center">
+          <input
+            type="checkbox"
+            checked={item.checked}
+            onChange={(e) => onPatch({ id: item.id, checked: e.target.checked })}
+            className="h-5 w-5"
+          />
+        </label>
+        <span
+          className={`min-w-0 flex-1 break-words text-sm ${item.checked ? "text-gray-400 line-through" : "text-gray-800"}`}
         >
-          −
-        </button>
-        <input
-          type="number"
-          value={step}
-          onChange={(e) => setStep(e.target.value)}
-          min="0"
-          step="any"
-          aria-label="Шаг изменения количества"
-          className="w-14 rounded-md border border-gray-300 px-1 py-1 text-center text-sm"
-        />
+          {item.name}
+          {item.amount != null ? ` — ${item.amount}${item.unit ? " " + item.unit : ""}` : ""}
+        </span>
+      </div>
+      <div className="flex basis-full items-center justify-between gap-2 sm:basis-auto sm:justify-start">
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            onClick={() => onPatch({ id: item.id, amount: round1(currentAmount - validStep) })}
+            disabled={!canDecrement || patchPending}
+            aria-label="Уменьшить количество"
+            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+          >
+            −
+          </button>
+          <input
+            type="number"
+            value={step}
+            onChange={(e) => setStep(e.target.value)}
+            min="0"
+            step="any"
+            aria-label="Шаг изменения количества"
+            className="min-h-[44px] w-16 rounded-md border border-gray-300 px-1 py-1 text-center text-sm"
+          />
+          <button
+            onClick={() => onPatch({ id: item.id, amount: round1(currentAmount + validStep) })}
+            disabled={!canIncrement || patchPending}
+            aria-label="Увеличить количество"
+            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+          >
+            +
+          </button>
+        </div>
         <button
-          onClick={() => onPatch({ id: item.id, amount: round1(currentAmount + validStep) })}
-          disabled={!canIncrement || patchPending}
-          aria-label="Увеличить количество"
-          className="h-7 w-7 rounded-md border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+          onClick={() => onDelete(item.id)}
+          disabled={deletePending}
+          className="inline-flex min-h-[44px] shrink-0 items-center rounded-md px-3 text-sm text-gray-400 hover:text-red-600 disabled:opacity-50"
         >
-          +
+          Удалить
         </button>
       </div>
-      <button
-        onClick={() => onDelete(item.id)}
-        disabled={deletePending}
-        className="text-xs text-gray-400 hover:text-red-600 disabled:opacity-50"
-      >
-        Удалить
-      </button>
     </li>
   );
 }
@@ -133,7 +141,7 @@ export default function ShoppingPage() {
           <button
             onClick={() => clearAll.mutate()}
             disabled={clearAll.isPending}
-            className="rounded-md border border-red-300 px-3 py-1 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50"
+            className="inline-flex min-h-[44px] items-center rounded-md border border-red-300 px-3 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50"
           >
             Очистить всё
           </button>
@@ -165,7 +173,7 @@ export default function ShoppingPage() {
         <button
           type="submit"
           disabled={addItem.isPending || !name.trim()}
-          className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+          className="inline-flex min-h-[44px] items-center rounded-md bg-emerald-600 px-4 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
         >
           Добавить
         </button>

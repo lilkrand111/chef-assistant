@@ -88,12 +88,18 @@ export default function PhotoPage() {
       <section className="mb-6 rounded-lg border border-gray-200 bg-white p-4">
         <h2 className="mb-3 font-medium text-gray-900">По фото</h2>
         <div className="flex flex-wrap items-center gap-3">
-          <input type="file" accept={ACCEPTED_TYPES} onChange={handleFileChange} className="text-sm" />
+          <input
+            type="file"
+            accept={ACCEPTED_TYPES}
+            capture="environment"
+            onChange={handleFileChange}
+            className="max-w-full text-sm"
+          />
           <button
             type="button"
             onClick={handleDetect}
             disabled={!file || detectPhoto.isPending}
-            className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+            className="inline-flex min-h-[44px] items-center rounded-md bg-emerald-600 px-4 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
           >
             {detectPhoto.isPending ? "Распознаём..." : "Распознать продукты"}
           </button>
@@ -127,7 +133,7 @@ export default function PhotoPage() {
             <button
               type="button"
               onClick={clearStaged}
-              className="rounded-md border border-red-300 px-3 py-1 text-sm text-red-700 hover:bg-red-50"
+              className="inline-flex min-h-[44px] items-center rounded-md border border-red-300 px-3 text-sm text-red-700 hover:bg-red-50"
             >
               Очистить всё
             </button>
@@ -143,7 +149,7 @@ export default function PhotoPage() {
             {staged.map((item) => (
               <li
                 key={item.key}
-                className="flex items-center gap-1 rounded-full border border-gray-300 bg-gray-50 px-3 py-1 text-sm text-gray-800"
+                className="flex items-center gap-1 rounded-full border border-gray-300 bg-gray-50 py-1 pl-3 pr-1 text-sm text-gray-800"
               >
                 <span>{item.label}</span>
                 {!item.ingredientId && (
@@ -157,7 +163,7 @@ export default function PhotoPage() {
                 <button
                   type="button"
                   onClick={() => removeStagedItem(item.key)}
-                  className="ml-1 text-gray-400 hover:text-gray-700"
+                  className="ml-1 inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full text-gray-400 hover:bg-gray-200 hover:text-gray-700"
                   aria-label={`Убрать ${item.label}`}
                 >
                   ×
@@ -175,7 +181,7 @@ export default function PhotoPage() {
           type="button"
           onClick={handleSubmit}
           disabled={staged.length === 0 || fromIngredients.isPending}
-          className="mt-4 rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+          className="mt-4 inline-flex min-h-[44px] items-center rounded-md bg-emerald-600 px-4 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
         >
           {fromIngredients.isPending ? "Подбираем блюда..." : "Подобрать блюда"}
         </button>

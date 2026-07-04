@@ -174,7 +174,7 @@ export default function DishCard({ dish, variant = "compact", portionScale = 1, 
         <button
           onClick={handleToggleSave}
           disabled={saveDish.isPending || unsaveDish.isPending}
-          className={`shrink-0 rounded-md px-3 py-1 text-sm font-medium disabled:opacity-50 ${
+          className={`inline-flex min-h-[44px] shrink-0 items-center rounded-md px-3 py-2 text-sm font-medium disabled:opacity-50 ${
             isSaved ? "bg-amber-100 text-amber-800 hover:bg-amber-200" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
           }`}
         >
@@ -222,12 +222,12 @@ export default function DishCard({ dish, variant = "compact", portionScale = 1, 
       {variant === "full" && (
         <>
           <div className="mt-4">
-            <div className="mb-2 flex items-center justify-between gap-2">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <h3 className="font-medium text-gray-900">Ингредиенты</h3>
               <button
                 onClick={handleToggleAll}
                 disabled={addFromDish.isPending || deleteItem.isPending}
-                className={`rounded-md px-3 py-1 text-sm font-medium disabled:opacity-50 ${
+                className={`inline-flex min-h-[44px] items-center rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 ${
                   allIngredientsAdded
                     ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
                     : "bg-emerald-600 text-white hover:bg-emerald-700"
@@ -240,15 +240,15 @@ export default function DishCard({ dish, variant = "compact", portionScale = 1, 
               {dish.ingredients.map((ing) => {
                 const addedHere = isIngredientAddedHere(ing.ingredientId);
                 return (
-                  <li key={ing.ingredientId} className="flex items-center justify-between gap-2 py-2 text-sm">
-                    <span>
+                  <li key={ing.ingredientId} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+                    <span className="min-w-0 flex-1 break-words">
                       {ing.name} — {round1(ing.amount * portionScale)} {ing.unit}
                       {ing.note ? `, ${ing.note}` : ""}
                     </span>
                     <button
                       onClick={() => handleToggleIngredient(ing)}
                       disabled={addItem.isPending || deleteItem.isPending || patchItem.isPending}
-                      className={`shrink-0 rounded-md border px-2 py-1 text-xs disabled:opacity-50 ${
+                      className={`inline-flex min-h-[44px] shrink-0 items-center rounded-md border px-3 py-2 text-sm disabled:opacity-50 ${
                         addedHere
                           ? "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
                           : "border-gray-300 text-gray-700 hover:bg-gray-50"

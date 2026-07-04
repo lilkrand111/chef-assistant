@@ -244,7 +244,7 @@ export default function MenuPage() {
               type="number"
               min="0"
               step="any"
-              className="mt-1 w-24 rounded-md border border-gray-300 px-3 py-2 text-sm"
+              className="mt-1 w-20 rounded-md border border-gray-300 px-3 py-2 text-sm"
             />
           </label>
           <label className="flex flex-col text-sm text-gray-700">
@@ -255,7 +255,7 @@ export default function MenuPage() {
               type="number"
               min="0"
               step="any"
-              className="mt-1 w-24 rounded-md border border-gray-300 px-3 py-2 text-sm"
+              className="mt-1 w-20 rounded-md border border-gray-300 px-3 py-2 text-sm"
             />
           </label>
           <label className="flex flex-col text-sm text-gray-700">
@@ -266,7 +266,7 @@ export default function MenuPage() {
               type="number"
               min="0"
               step="any"
-              className="mt-1 w-24 rounded-md border border-gray-300 px-3 py-2 text-sm"
+              className="mt-1 w-20 rounded-md border border-gray-300 px-3 py-2 text-sm"
             />
           </label>
         </div>
@@ -274,7 +274,7 @@ export default function MenuPage() {
         <button
           type="submit"
           disabled={generateMenu.isPending}
-          className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+          className="inline-flex min-h-[44px] items-center rounded-md bg-emerald-600 px-4 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
         >
           {generateMenu.isPending ? "Подбираем..." : "Собрать меню"}
         </button>
@@ -288,7 +288,7 @@ export default function MenuPage() {
             <button
               onClick={handleAddAllMenuIngredients}
               disabled={addAllPending}
-              className={`rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 ${
+              className={`inline-flex min-h-[44px] items-center rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 ${
                 allMenuIngredientsAdded
                   ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
                   : "bg-emerald-600 text-white hover:bg-emerald-700"
@@ -306,14 +306,14 @@ export default function MenuPage() {
           <div className="space-y-4">
             {plan.meals.map((meal) => (
               <div key={`${meal.mealType}-${meal.dish.id}`}>
-                <div className="mb-2 flex items-center justify-between gap-2">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
                     {MEAL_TYPE_LABELS[meal.mealType]}
                   </h2>
                   <button
                     onClick={() => handleReplaceMeal(meal.mealType)}
                     disabled={replacingMealType !== null}
-                    className="shrink-0 rounded-md border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                    className="inline-flex min-h-[44px] shrink-0 items-center rounded-md border border-gray-300 px-3 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
                   >
                     {replacingMealType === meal.mealType ? "Заменяем..." : "Заменить блюдо"}
                   </button>

@@ -4,6 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ИИ-помощник шефа</title>
+
+    <!-- PWA (М3 mobile-and-deployment-spec.md): manifest сам инжектит
+         vite-plugin-pwa, здесь — то, что iOS/Safari не читает из него. -->
+    <meta name="theme-color" content="#059669" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   </head>
   <body>
     <div id="root"></div>

@@ -23,7 +23,7 @@ export default function DishDetailPage() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-6">
-      <Link to={backLink.path} className="mb-4 inline-block text-sm text-emerald-700 hover:underline">
+      <Link to={backLink.path} className="mb-4 inline-flex min-h-[44px] items-center text-sm text-emerald-700 hover:underline">
         ← {backLink.label}
       </Link>
       {isLoading && <p className="text-gray-500">Загрузка...</p>}

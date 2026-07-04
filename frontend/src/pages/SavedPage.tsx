@@ -1,5 +1,9 @@
 import { useSaved } from "../api/saved";
-import DishCard from "../components/DishCard";
+import DishCard, { type DishDetailBackLink } from "../components/DishCard";
+
+// Кнопка "Подробнее" на сохранённом рецепте должна возвращать сюда же (§13,
+// кейс 25), а не всегда в каталог — тот же приём backLink, что и у меню/подбора.
+const SAVED_BACK_LINK: DishDetailBackLink = { path: "/saved", label: "Назад к сохранённым" };
 
 export default function SavedPage() {
   const { data, isLoading, isError, error } = useSaved();
@@ -14,7 +18,7 @@ export default function SavedPage() {
 
       <div className="grid gap-4 sm:grid-cols-2">
         {data?.map((dish) => (
-          <DishCard key={dish.id} dish={dish} variant="compact" />
+          <DishCard key={dish.id} dish={dish} variant="compact" backLink={SAVED_BACK_LINK} />
         ))}
       </div>
     </div>

@@ -1,5 +1,6 @@
 // POST /api/menu/generate, POST /api/menu/replace-meal (§6.2, §7.3, §8 спецификации).
 import type { FastifyPluginAsync } from "fastify";
+import { DishSource } from "@prisma/client";
 import { prisma } from "../db";
 import { ApiError } from "../lib/errors";
 import { menuGenerateSchema, menuReplaceMealSchema } from "../schemas/menu";
@@ -23,7 +24,13 @@ const menuRoutes: FastifyPluginAsync = async (app) => {
   app.post("/api/menu/generate", async (request) => {
     const input = menuGenerateSchema.parse(request.body);
 
-    const catalog = await prisma.dish.findMany({ include: dishWithIngredientsInclude });
+    // Только готовый каталог (§1, §6.2 спецификации) — блюда, сгенерированные
+    // ИИ в разделе "Подбор" (source = AI, §6.1), в дневное меню не попадают,
+    // даже после того как осели в таблице Dish для повторного использования там.
+    const catalog = await prisma.dish.findMany({
+      where: { source: DishSource.CATALOG },
+      include: dishWithIngredientsInclude,
+    });
 
     try {
       const plan = generateMenu(input, catalog);
@@ -41,7 +48,12 @@ const menuRoutes: FastifyPluginAsync = async (app) => {
   app.post("/api/menu/replace-meal", async (request) => {
     const input = menuReplaceMealSchema.parse(request.body);
 
-    const catalog = await prisma.dish.findMany({ include: dishWithIngredientsInclude });
+    // Тот же фильтр, что и в /generate — замена не должна подставлять блюдо,
+    // сгенерированное ИИ в разделе "Подбор".
+    const catalog = await prisma.dish.findMany({
+      where: { source: DishSource.CATALOG },
+      include: dishWithIngredientsInclude,
+    });
 
     try {
       const plan = replaceMenuMeal(input, catalog, input.meals, input.mealType);

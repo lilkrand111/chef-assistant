@@ -1,0 +1,89 @@
+# Прод-стек (Фаза D2, mobile-and-deployment-spec.md): postgres + backend +
+# nginx в одном Compose-файле. Не путать с docker-compose.yml (дев,
+# только Postgres) — оба файла лежат в одном каталоге.
+#
+# Имя проекта задано явно (находка №2 промпта Фазы D2): без этого Compose
+# берёт имя проекта из имени каталога ("chef-assistant") — то же самое, что
+# уже использует дев-стек, и оба оказались бы в одном network
+# namespace/volume-префиксе. Запуск: `docker compose -f
+# docker-compose.prod.yml up -d` (имя проекта ниже применяется
+# автоматически благодаря `name:`, -p не обязателен, но можно продублировать
+# явно).
+name: chef-assistant-prod
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    env_file:
+      - ./.env.production
+    restart: unless-stopped
+    # Порт наружу не публикуется — доступ только из сети Compose (backend
+    # обращается по имени сервиса "postgres"), см. находку №3 промпта.
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # $$ — экранирование для Compose, чтобы $POSTGRES_USER/$POSTGRES_DB
+      # подставлялись shell'ом ВНУТРИ контейнера (эти переменные приходят
+      # туда через env_file выше и экспортируются entrypoint'ом образа
+      # postgres), а не интерполировались Compose на этапе чтения файла.
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    env_file:
+      - ./backend/.env.production
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Кэш весов модели эмбеддингов (предостережение №2 §0.1) — переживает
+    # пересоздание контейнера, см. HF_HOME=/models/hf в backend/Dockerfile.
+    volumes:
+      - models:/models
+    # Порт наружу не публикуется — доступ только через nginx по внутренней
+    # сети Compose (имя сервиса "backend", порт 3000), см. находку №3.
+    #
+    # У backend/Dockerfile нет собственного HEALTHCHECK (node:20-bookworm-slim
+    # без curl/wget "из коробки", предостережение №2 — не тянуть их в образ
+    # только ради этого). Проверка через встроенный fetch() Node 20, без
+    # доп. пакетов, чтобы nginx мог дождаться реальной готовности backend
+    # (condition: service_healthy ниже), а не просто старта процесса.
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  nginx:
+    build:
+      # Контекст сборки — корень репозитория (chef-assistant/), т.к.
+      # nginx/Dockerfile (вариант А, см. комментарий в самом файле) собирает
+      # фронт из ../frontend относительно nginx/, т.е. ./frontend
+      # относительно этого контекста.
+      context: .
+      dockerfile: nginx/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    # Единственный сервис, публикующий порт наружу (находка №3). На VPS —
+    # 80; локально при проверке можно переопределить переменной окружения
+    # NGINX_PORT (напр. `NGINX_PORT=8080 docker compose -f
+    # docker-compose.prod.yml up -d`), если 80 на хосте занят.
+    ports:
+      - "${NGINX_PORT:-80}:80"
+
+volumes:
+  pgdata:
+  models:

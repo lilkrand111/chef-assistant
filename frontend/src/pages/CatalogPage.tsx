@@ -18,17 +18,17 @@ export default function CatalogPage() {
     <div className="mx-auto max-w-4xl px-4 py-6">
       <h1 className="mb-4 text-2xl font-bold text-gray-900">Каталог блюд</h1>
 
-      <div className="mb-4 flex flex-wrap gap-2">
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Поиск по названию..."
-          className="min-w-[200px] flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm"
+          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm sm:min-w-[200px] sm:flex-1"
         />
         <select
           value={mealType}
           onChange={(e) => setMealType(e.target.value as MealType | "")}
-          className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm sm:w-auto"
         >
           <option value="">Все приёмы пищи</option>
           {MEAL_TYPES.map((mt) => (

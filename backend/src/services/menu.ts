@@ -80,7 +80,12 @@ const MEAL_FRACTIONS_NO_SNACK: Record<MealType, number> = Object.fromEntries(
 const TOLERANCE = 0.05;
 const FRAC_SCALE_MIN = 0.5;
 const FRAC_SCALE_MAX = 2.0;
-const CANDIDATE_POOL_SIZE = 4;
+// Сколько top-N кандидатов по score рассматривается на каждый приём пищи перед
+// декартовым перебором (§7.3 п.6). Раньше было 4 — при 20+ блюдах на mealType это
+// детерминированно «схлопывало» 5–11 реально подходящих блюд до ≤6 видимых в
+// повторных сборках. Поднято до 10: на текущем каталоге даёт ~10–13 разных блюд
+// на слот для MASS 2500 (замерено), декартово ~10⁴+10³ комбинаций остаётся дешёвым.
+const CANDIDATE_POOL_SIZE = 10;
 
 interface MacroTargets {
   kcal: number;
