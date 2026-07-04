@@ -51,6 +51,11 @@ RUN apt-get update -y && apt-get install -y --no-install-recommends openssl \
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
+# `npm run seed` выполняет `tsx prisma/seed.ts` напрямую (не dist/), а
+# seed.ts импортирует из "../src/*" (db, services/nutrition, matching,
+# ai/embed) — без исходников tsx падает MODULE_NOT_FOUND в runtime-образе
+# (найдено при первом реальном прогоне seed на сервере, Фаза D3).
+COPY --from=build /app/src ./src
 COPY package.json ./
 
 # Кэш весов модели эмбеддингов (предостережение №2 §0.1). По умолчанию —
