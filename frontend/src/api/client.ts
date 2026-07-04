@@ -17,14 +17,21 @@ export class ApiRequestError extends Error {
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  // FormData (загрузка фото, §6.1) не должна получить Content-Type: application/json —
+  // Content-Type: application/json — только когда реально есть JSON-тело.
+  // FormData (загрузка фото, §6.1) не должна получить этот заголовок —
   // границу multipart браузер выставляет сам, вместе с boundary.
+  // Для запросов без тела (api.delete) заголовок раньше выставлялся всегда —
+  // на DELETE с пустым телом и Content-Type: application/json backend
+  // (Fastify) может получить Content-Length от браузера и попытаться
+  // распарсить пустое тело как JSON, упав с 400 FST_ERR_CTP_EMPTY_JSON_BODY
+  // (backend/node_modules/fastify/lib/handleRequest.js, ветка DELETE/OPTIONS).
+  const hasBody = options.body !== undefined;
   const isFormData = options.body instanceof FormData;
 
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
     headers: {
-      ...(isFormData ? {} : { "Content-Type": "application/json" }),
+      ...(hasBody && !isFormData ? { "Content-Type": "application/json" } : {}),
       "x-user-id": getUserId(),
       ...options.headers,
     },
