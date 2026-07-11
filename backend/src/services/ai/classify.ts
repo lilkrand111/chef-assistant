@@ -27,7 +27,7 @@ const CATEGORY_JSON_SCHEMA = {
 } as const;
 
 async function callClassifyModel(normalizedName: string): Promise<{ category: IngredientCategory }> {
-  const client = getAiClient();
+  const client = getAiClient("CLASSIFY");
   const model = getAiModel("CLASSIFY");
 
   let completion;

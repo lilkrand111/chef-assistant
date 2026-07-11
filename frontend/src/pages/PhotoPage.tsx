@@ -11,11 +11,16 @@ import { useDishSelectionState } from "../state/dishSelectionContext";
 
 const RESULT_BACK_LINK: DishDetailBackLink = { path: "/photo", label: "Назад к подбору" };
 const ACCEPTED_TYPES = "image/jpeg,image/png,image/webp,image/gif";
+// Одно обращение к ИИ обрабатывает сразу весь набор фото (см. backend
+// services/ai/vision.ts) — лимит нужен, чтобы не выбрать больше, чем
+// принимает бэкенд, а не только для экономии запросов.
+const MAX_PHOTOS = 4;
 const normalize = (s: string) => s.trim().toLowerCase();
 
 export default function PhotoPage() {
-  const [file, setFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+  const [selectionError, setSelectionError] = useState<string | null>(null);
   // Набор продуктов и результат подбора — в контексте выше <Routes> (а не в
   // локальном useState), иначе переход "Подробнее" → "Назад к подбору"
   // размонтировал бы PhotoPage и стирал бы уже сформированные карточки.
@@ -50,14 +55,23 @@ export default function PhotoPage() {
   const clearStaged = () => setStaged([]);
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const selected = e.target.files?.[0] ?? null;
-    setFile(selected);
-    setPreviewUrl(selected ? URL.createObjectURL(selected) : null);
+    const selected = Array.from(e.target.files ?? []);
+    previewUrls.forEach((url) => URL.revokeObjectURL(url));
+    if (selected.length > MAX_PHOTOS) {
+      setSelectionError(`Можно выбрать не больше ${MAX_PHOTOS} фото за один раз — взяты первые ${MAX_PHOTOS}.`);
+    } else {
+      setSelectionError(null);
+    }
+    const limited = selected.slice(0, MAX_PHOTOS);
+    setFiles(limited);
+    setPreviewUrls(limited.map((f) => URL.createObjectURL(f)));
   };
 
   const handleDetect = () => {
-    if (!file) return;
-    detectPhoto.mutate(file, {
+    if (files.length === 0) return;
+    // Один вызов на весь набор фото (до 4 за раз) — не по одному запросу на
+    // фото, чтобы не расходовать лишние обращения к ИИ.
+    detectPhoto.mutate(files, {
       onSuccess: (data) => {
         // Промежуточное подтверждение (§6.1): распознанные продукты попадают
         // в общий набор ниже — как совпавшие с базой, так и нет, чтобы
@@ -91,25 +105,34 @@ export default function PhotoPage() {
           <input
             type="file"
             accept={ACCEPTED_TYPES}
-            capture="environment"
+            multiple
             onChange={handleFileChange}
             className="max-w-full text-sm"
           />
           <button
             type="button"
             onClick={handleDetect}
-            disabled={!file || detectPhoto.isPending}
+            disabled={files.length === 0 || detectPhoto.isPending}
             className="inline-flex min-h-[44px] items-center rounded-md bg-emerald-600 px-4 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
           >
-            {detectPhoto.isPending ? "Распознаём..." : "Распознать продукты"}
+            {detectPhoto.isPending
+              ? "Распознаём..."
+              : `Распознать продукты${files.length > 1 ? ` (${files.length} фото)` : ""}`}
           </button>
         </div>
-        {previewUrl && (
-          <img
-            src={previewUrl}
-            alt="Предпросмотр загруженного фото"
-            className="mt-3 max-h-40 rounded-md border border-gray-200 object-contain"
-          />
+        <p className="mt-2 text-xs text-gray-400">До {MAX_PHOTOS} фото за 1 раз.</p>
+        {selectionError && <p className="mt-2 text-sm text-amber-700">{selectionError}</p>}
+        {previewUrls.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {previewUrls.map((url, i) => (
+              <img
+                key={url}
+                src={url}
+                alt={`Предпросмотр загруженного фото ${i + 1}`}
+                className="max-h-40 rounded-md border border-gray-200 object-contain"
+              />
+            ))}
+          </div>
         )}
         {detectPhoto.isError && (
           <p className="mt-2 text-sm text-red-600">

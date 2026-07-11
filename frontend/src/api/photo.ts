@@ -5,9 +5,12 @@ import type { PhotoDetectResponse } from "./types";
 
 export function useDetectPhoto() {
   return useMutation({
-    mutationFn: (file: File) => {
+    // До 4 файлов за один вызов — все уходят в одном запросе (одно поле
+    // формы, повторенное несколько раз), т.к. backend распознаёт весь набор
+    // фото за один обращение к ИИ (см. services/ai/vision.ts на бэкенде).
+    mutationFn: (files: File[]) => {
       const formData = new FormData();
-      formData.append("image", file);
+      files.forEach((file) => formData.append("image", file));
       return api.postForm<PhotoDetectResponse>("/api/photo/detect", formData);
     },
   });

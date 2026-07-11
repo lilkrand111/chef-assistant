@@ -18,8 +18,10 @@ const app = Fastify({ logger: true });
 app.register(cors, { origin: true });
 app.register(userIdPlugin);
 // Загрузка фото (§6.1 «Вход A»): лимит размера файла — защита от случайных
-// огромных загрузок, не связана с бизнес-логикой распознавания.
-app.register(multipart, { limits: { fileSize: 8 * 1024 * 1024 } });
+// огромных загрузок, не связана с бизнес-логикой распознавания. files: 4 —
+// та же граница, что и в routes/photo.ts, задана здесь ещё раз как жёсткий
+// потолок на уровне парсера (защита от лишних вызовов ИИ, см. §10).
+app.register(multipart, { limits: { fileSize: 8 * 1024 * 1024, files: 4 } });
 
 app.register(dishesRoutes);
 app.register(ingredientsRoutes);

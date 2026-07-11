@@ -94,7 +94,7 @@ export interface GenerationIngredientInput {
 }
 
 async function callGenerateModel(ingredients: GenerationIngredientInput[]): Promise<{ dishes: GeneratedDish[] }> {
-  const client = getAiClient();
+  const client = getAiClient("GENERATION");
   const model = getAiModel("GENERATION");
 
   const ingredientsForPrompt = ingredients.map((i) => ({

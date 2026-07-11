@@ -40,9 +40,11 @@ const VISION_JSON_SCHEMA = {
 // проверку против рекурсивного Prisma.InputJsonValue (нужен для withAiCache).
 export type DetectedProduct = z.infer<typeof productSchema>;
 
-async function callVisionModel(dataUri: string): Promise<{ products: DetectedProduct[] }> {
-  const client = getAiClient();
+async function callVisionModel(dataUris: string[]): Promise<{ products: DetectedProduct[] }> {
+  const client = getAiClient("VISION");
   const model = getAiModel("VISION");
+
+  const photoWord = dataUris.length > 1 ? "этих фото" : "этом фото";
 
   let completion;
   try {
@@ -53,15 +55,18 @@ async function callVisionModel(dataUri: string): Promise<{ products: DetectedPro
           role: "system",
           content:
             "Ты распознаёшь продукты питания на фото для кулинарного приложения. " +
-            "Перечисли все продукты, которые уверенно видишь на фото, обычными русскими названиями " +
-            "(как в рецепте, без брендов и лишних уточнений в скобках). confidence — число от 0 до 1, " +
-            "насколько ты уверен в распознавании конкретного продукта. Отвечай только JSON.",
+            "Тебе может быть передано несколько фото за один раз — считай их одним набором " +
+            "продуктов и не повторяй один и тот же продукт дважды, даже если он виден на " +
+            "нескольких фото. Перечисли все продукты, которые уверенно видишь, обычными " +
+            "русскими названиями (как в рецепте, без брендов и лишних уточнений в скобках). " +
+            "confidence — число от 0 до 1, насколько ты уверен в распознавании конкретного " +
+            "продукта. Отвечай только JSON.",
         },
         {
           role: "user",
           content: [
-            { type: "text", text: "Какие продукты питания есть на этом фото? Верни JSON по схеме." },
-            { type: "image_url", image_url: { url: dataUri } },
+            { type: "text", text: `Какие продукты питания есть на ${photoWord}? Верни JSON по схеме.` },
+            ...dataUris.map((dataUri) => ({ type: "image_url" as const, image_url: { url: dataUri } })),
           ],
         },
       ],
@@ -91,18 +96,30 @@ async function callVisionModel(dataUri: string): Promise<{ products: DetectedPro
   return validated.data;
 }
 
-/**
- * Распознаёт продукты на фото (§7.7). Кеш — по sha256 БАЙТОВ изображения
- * (§10), а не по содержимому ответа, чтобы то же самое фото не вызывало ИИ
- * повторно даже до получения ответа. Бросает AiServiceError при недоступном
- * шлюзе или невалидном ответе — routes/photo.ts превращает её в понятную
- * клиентскую ошибку (§10 «Деградация»).
- */
-export async function detectProducts(imageBuffer: Buffer, mimeType: string): Promise<DetectedProduct[]> {
-  const bytesHash = crypto.createHash("sha256").update(imageBuffer).digest("hex");
-  const dataUri = `data:${mimeType};base64,${imageBuffer.toString("base64")}`;
+export interface DetectImageInput {
+  buffer: Buffer;
+  mimeType: string;
+}
 
-  const { value } = await withAiCache("VISION", bytesHash, () => callVisionModel(dataUri));
+/**
+ * Распознаёт продукты на 1-4 фото за один вызов ИИ (§7.7) — несколько фото
+ * идут в одном сообщении, а не отдельными запросами, чтобы не тратить лишние
+ * запросы к дневному лимиту (§10). Кеш — по отсортированным sha256 БАЙТОВ
+ * каждого фото (порядок загрузки не важен), а не по содержимому ответа,
+ * чтобы тот же набор фото не вызывал ИИ повторно даже до получения ответа.
+ * Бросает AiServiceError при недоступном шлюзе или невалидном ответе —
+ * routes/photo.ts превращает её в понятную клиентскую ошибку (§10 «Деградация»).
+ */
+export async function detectProducts(images: DetectImageInput[]): Promise<DetectedProduct[]> {
+  const bytesHash = images
+    .map(({ buffer }) => crypto.createHash("sha256").update(buffer).digest("hex"))
+    .sort()
+    .join(",");
+  const dataUris = images.map(
+    ({ buffer, mimeType }) => `data:${mimeType};base64,${buffer.toString("base64")}`
+  );
+
+  const { value } = await withAiCache("VISION", bytesHash, () => callVisionModel(dataUris));
 
   // Повторная валидация и для значения из кеша (см. classify.ts) — формат
   // мог измениться, а из AiCache приходит непроверенный JSON.
