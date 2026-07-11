@@ -2,6 +2,7 @@
 // базой (§6.1 «Вход A», §8 спецификации). Требует зарегистрированный
 // @fastify/multipart (см. server.ts).
 import type { FastifyPluginAsync } from "fastify";
+import sharp from "sharp";
 import { ApiError } from "../lib/errors";
 import { matchIngredient } from "../services/matching";
 import { detectProducts } from "../services/ai/vision";
@@ -24,7 +25,23 @@ const photoRoutes: FastifyPluginAsync = async (app) => {
       if (!ALLOWED_MIME_TYPES.has(part.mimetype)) {
         throw new ApiError(400, "UNSUPPORTED_IMAGE_TYPE", "Поддерживаются только изображения JPEG, PNG, WEBP, GIF");
       }
-      files.push({ buffer: await part.toBuffer(), mimetype: part.mimetype });
+      const rawBuffer = await part.toBuffer();
+      // Перекодируем всё в JPEG перед отправкой в ИИ (§10) — меньше байт по
+      // сети/в запросе к Gemini, чем оригинальные PNG/WEBP/GIF. .rotate() без
+      // аргументов — выравнивание по EXIF-тегу ориентации перед перекодировкой,
+      // иначе после перекодировки метаданные теряются и фото с телефона может
+      // оказаться повёрнутым.
+      let buffer: Buffer;
+      try {
+        buffer = await sharp(rawBuffer).rotate().jpeg({ quality: 82 }).toBuffer();
+      } catch {
+        throw new ApiError(
+          400,
+          "INVALID_IMAGE",
+          "Не удалось обработать изображение — файл повреждён или в неподдерживаемом формате"
+        );
+      }
+      files.push({ buffer, mimetype: "image/jpeg" });
     }
     if (files.length === 0) {
       throw new ApiError(400, "NO_IMAGE", "Не передано изображение (поле формы 'image')");
