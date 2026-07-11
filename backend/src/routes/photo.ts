@@ -30,16 +30,18 @@ const photoRoutes: FastifyPluginAsync = async (app) => {
       // сети/в запросе к Gemini, чем оригинальные PNG/WEBP/GIF. .rotate() без
       // аргументов — выравнивание по EXIF-тегу ориентации перед перекодировкой,
       // иначе после перекодировки метаданные теряются и фото с телефона может
-      // оказаться повёрнутым. resize до 1600px по длинной стороне — фото с
-      // современных телефонов (12-48 Мп) для распознавания продуктов не
-      // нужны в исходном разрешении, а вес до сжатия в JPEG снижают в разы;
-      // withoutEnlargement — не увеличивать маленькие фото.
+      // оказаться повёрнутым. resize до 1280px по длинной стороне — тот же
+      // порядок, что даёт Telegram при отправке "как фото" (не "как файл"):
+      // основной вклад в снижение веса даёт именно уменьшение разрешения, а
+      // не только качество JPEG (12-48 Мп для распознавания продуктов не
+      // нужны). mozjpeg — более эффективное кодирование при том же визуальном
+      // качестве. withoutEnlargement — не увеличивать маленькие фото.
       let buffer: Buffer;
       try {
         buffer = await sharp(rawBuffer)
           .rotate()
-          .resize({ width: 1600, height: 1600, fit: "inside", withoutEnlargement: true })
-          .jpeg({ quality: 82 })
+          .resize({ width: 1280, height: 1280, fit: "inside", withoutEnlargement: true })
+          .jpeg({ quality: 80, mozjpeg: true })
           .toBuffer();
       } catch {
         throw new ApiError(
