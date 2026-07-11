@@ -18,10 +18,14 @@ const app = Fastify({ logger: true });
 app.register(cors, { origin: true });
 app.register(userIdPlugin);
 // Загрузка фото (§6.1 «Вход A»): лимит размера файла — защита от случайных
-// огромных загрузок, не связана с бизнес-логикой распознавания. files: 4 —
-// та же граница, что и в routes/photo.ts, задана здесь ещё раз как жёсткий
-// потолок на уровне парсера (защита от лишних вызовов ИИ, см. §10).
-app.register(multipart, { limits: { fileSize: 8 * 1024 * 1024, files: 4 } });
+// огромных загрузок, не связана с бизнес-логикой распознавания. 20 МБ —
+// современные телефонные камеры (в т.ч. iPhone 48 Мп) легко дают фото по
+// 10-20 МБ даже в JPEG; nginx.conf::client_max_body_size должен покрывать
+// files (4) × это значение, иначе большие фото режутся раньше, чем дойдут
+// сюда (см. production-runbook.md). files: 4 — та же граница, что и в
+// routes/photo.ts, задана здесь ещё раз как жёсткий потолок на уровне
+// парсера (защита от лишних вызовов ИИ, см. §10).
+app.register(multipart, { limits: { fileSize: 20 * 1024 * 1024, files: 4 } });
 
 app.register(dishesRoutes);
 app.register(ingredientsRoutes);
