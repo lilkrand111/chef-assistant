@@ -7,6 +7,7 @@ import { useDishesFromIngredients } from "../api/dishes";
 import { useDetectPhoto } from "../api/photo";
 import DishCard, { type DishDetailBackLink } from "../components/DishCard";
 import IngredientAutocomplete, { type StagedIngredientChoice } from "../components/IngredientAutocomplete";
+import { compressImage } from "../lib/compressImage";
 import { useDishSelectionState } from "../state/dishSelectionContext";
 
 const RESULT_BACK_LINK: DishDetailBackLink = { path: "/photo", label: "Назад к подбору" };
@@ -21,6 +22,7 @@ export default function PhotoPage() {
   const [files, setFiles] = useState<File[]>([]);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const [selectionError, setSelectionError] = useState<string | null>(null);
+  const [isCompressing, setIsCompressing] = useState(false);
   // Набор продуктов и результат подбора — в контексте выше <Routes> (а не в
   // локальном useState), иначе переход "Подробнее" → "Назад к подбору"
   // размонтировал бы PhotoPage и стирал бы уже сформированные карточки.
@@ -54,7 +56,7 @@ export default function PhotoPage() {
 
   const clearStaged = () => setStaged([]);
 
-  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
     const selected = Array.from(e.target.files ?? []);
     previewUrls.forEach((url) => URL.revokeObjectURL(url));
     if (selected.length > MAX_PHOTOS) {
@@ -63,8 +65,15 @@ export default function PhotoPage() {
       setSelectionError(null);
     }
     const limited = selected.slice(0, MAX_PHOTOS);
-    setFiles(limited);
-    setPreviewUrls(limited.map((f) => URL.createObjectURL(f)));
+    setFiles([]);
+    setPreviewUrls([]);
+    // Сжимаем на телефоне до отправки (§6.1) — иначе по мобильной сети уходит
+    // оригинал (часто 10-20+ МБ с телефона), а не то, что реально распознаётся.
+    setIsCompressing(true);
+    const compressed = await Promise.all(limited.map((f) => compressImage(f)));
+    setIsCompressing(false);
+    setFiles(compressed);
+    setPreviewUrls(compressed.map((f) => URL.createObjectURL(f)));
   };
 
   const handleDetect = () => {
@@ -112,12 +121,14 @@ export default function PhotoPage() {
           <button
             type="button"
             onClick={handleDetect}
-            disabled={files.length === 0 || detectPhoto.isPending}
+            disabled={files.length === 0 || isCompressing || detectPhoto.isPending}
             className="inline-flex min-h-[44px] items-center rounded-md bg-emerald-600 px-4 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
           >
-            {detectPhoto.isPending
-              ? "Распознаём..."
-              : `Распознать продукты${files.length > 1 ? ` (${files.length} фото)` : ""}`}
+            {isCompressing
+              ? "Обрабатываем фото..."
+              : detectPhoto.isPending
+                ? "Распознаём..."
+                : `Распознать продукты${files.length > 1 ? ` (${files.length} фото)` : ""}`}
           </button>
         </div>
         <p className="mt-2 text-xs text-gray-400">До {MAX_PHOTOS} фото за 1 раз.</p>
